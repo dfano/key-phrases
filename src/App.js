@@ -8,6 +8,19 @@ function App() {
   const [jobDescription, setJobDescription] = useState('');
   const [results, setResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [expandedPhrases, setExpandedPhrases] = useState({});
+
+  const extractJsonFromMarkdown = (text) => {
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    return jsonMatch ? jsonMatch[1].trim() : text.trim();
+  };
+
+  const togglePhrase = (index) => {
+    setExpandedPhrases(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,9 +37,9 @@ function App() {
             },
             {
               "role": "user",
-              "content": `Analyze the following job description and provide keyword prioritization as a JSON object. The JSON should have an array called 'keyPhrases', where each item is an object with properties: 'phrase' (string), 'priority' (string: HIGH, MEDIUM, or LOW), and 'keywords' (array of objects, each with 'word' and 'score' properties).
+              "content": `Analyze the following job description and provide keyword prioritization as a JSON object. The JSON should have an array called 'keyPhrases' with a maximum of 10 items, where each item is an object with properties: 'phrase' (string), 'priority' (string: HIGH, MEDIUM, or LOW), and 'keywords' (array of objects, each with 'word' and 'score' properties).
 
-Only use language found within the job description. Pay close attention to emphasis words like "must be", "expert in", "strong knowledge", "experience with", etc. A key phrase should be words that are relevant to the job function. A "keyword" should not exceed 3 words. Ensure that tools and technologies are considered as keywords.
+Only use language found within the job description. Pay close attention to emphasis words like "must be", "expert in", "strong knowledge", "experience with", etc. A key phrase should be words that are relevant to the job function. A "keyword" should not exceed 3 words. Ensure that tools and technologies are considered as keywords. Prioritize the most important key phrases if there are more than 10.
 
 Job Title: ${jobTitle}
 
@@ -43,11 +56,25 @@ ${jobDescription}`
           }
         }
       );
-      const jsonResult = JSON.parse(response.data.choices[0].message.content);
+      const content = response.data.choices[0].message.content;
+      console.log('Raw API response:', content);
+      
+      const jsonString = extractJsonFromMarkdown(content);
+      console.log('Extracted JSON string:', jsonString);
+      
+      let jsonResult;
+      try {
+        jsonResult = JSON.parse(jsonString);
+      } catch (parseError) {
+        console.error('JSON parsing error:', parseError);
+        console.log('Attempted to parse:', jsonString);
+        throw new Error('Failed to parse JSON response');
+      }
+      
       setResults(jsonResult);
     } catch (error) {
       console.error('Error calling OpenAI API:', error);
-      setResults({ error: 'An error occurred while processing your request.' });
+      setResults({ error: 'An error occurred while processing your request. Please check the console for more details.' });
     }
     setIsLoading(false);
   };
@@ -91,13 +118,23 @@ ${jobDescription}`
           ) : (
             <div>
               {results.keyPhrases.map((keyPhrase, index) => (
-                <div key={index} className="mb-4">
-                  <h4>{keyPhrase.phrase} ({keyPhrase.priority})</h4>
-                  <ul>
-                    {keyPhrase.keywords.map((keyword, kidx) => (
-                      <li key={kidx}>{keyword.word} (Score: {keyword.score})</li>
-                    ))}
-                  </ul>
+                <div key={index} className="keyphrase-container mb-3">
+                  <div 
+                    className={`keyphrase-header ${expandedPhrases[index] ? 'expanded' : ''}`}
+                    onClick={() => togglePhrase(index)}
+                  >
+                    <span className="expand-icon">{expandedPhrases[index] ? '−' : '+'}</span>
+                    {keyPhrase.phrase} ({keyPhrase.priority})
+                  </div>
+                  {expandedPhrases[index] && (
+                    <div className="keyphrase-keywords">
+                      {keyPhrase.keywords.map((keyword, kidx) => (
+                        <span key={kidx} className="keyword">
+                          {keyword.word} ({keyword.score})
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
