@@ -1,0 +1,16 @@
+body {
+  background-color: #f8f9fa;
+}
+
+.container {
+  max-width: 600px;
+}
+
+.form-control {
+  border-radius: 0.25rem;
+}
+
+.btn-dark {
+  border-radius: 0.25rem;
+  padding: 0.375rem 1.5rem;
+}
